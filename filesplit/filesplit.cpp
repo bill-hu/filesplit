@@ -6,17 +6,40 @@
 #include <stdlib.h>
 const int BUF_SIZE=64*1024*1024;
 char buf[BUF_SIZE];
+const int headLen = 581;
+//const int PosfFixLen = 
+
+void getNextWritePos( char * p, int totalfilelen, int skipsize, int* writelen )
+{
+	static char * splitString ="\r\n}\r\n#endif";
+	static int len = strlen(splitString);
+	static int len2 = 5;
+
+	p += skipsize;
+	for(;skipsize < totalfilelen;p++,skipsize++)
+	{
+		if(!strncmp(p,splitString,len))
+		{
+			skipsize += len;
+			break;
+		}else if(skipsize > 600000)
+		{
+			if(!strncmp(p,splitString,len2))
+			{
+				skipsize += len2;
+				break;
+			}
+		}
+	}
+	*writelen = skipsize;
+}
 
 int _tmain(int argc, _TCHAR* argv[])
 {
 	bool bSeek = false;
-	if(argc < 4)
+	if(argc < 2)
 	{
-		printf("\nSkip the size from begining:\n");
-		printf("Useage: filesplit size infile outfile");
-
-		printf("Keep the size from begining:\n");
-		printf("Useage: filesplit size infile outfile 1\n");
+		printf("Useage: %s size inputfile",argv[0]);
 		return -1;
 	}
 	
@@ -31,28 +54,10 @@ int _tmain(int argc, _TCHAR* argv[])
 		printf("Error open input file :%s",argv[2]);
 		return -2;
 	}
-
-	fpo = fopen(argv[3],"wb");
-	if(NULL == fpo)
-	{
-		printf("Error open output file :%s",argv[3]);
-		fclose(fpi);
-		return -3;
-	}
-
 	fseek(fpi,0,SEEK_END);
 	int length =ftell(fpi);
-	if(argc == 5)
-	{
-		length = skipsize;
-		fseek(fpi,0,SEEK_SET);
-	}
-	else
-	{
-		fseek(fpi,skipsize,SEEK_SET);
-		length -= skipsize;
-	}
-	printf("\n!Begin");
+	int totalfilelen = length;
+	fseek(fpi,0,SEEK_SET);
 	while(length > 0)
 	{
 		int readlen;
@@ -61,14 +66,36 @@ int _tmain(int argc, _TCHAR* argv[])
 		else
 			readlen = BUF_SIZE;
 		int readsize = fread(buf,1,readlen,fpi);
-		if(readsize>0)
-		{
-			fwrite(buf,1,readsize,fpo);
-		}
 		length -= readsize;
 	}
 	fclose(fpi);
-	fclose(fpo);
+
+	length = 0;
+	char * p = buf;
+
+	for(int i=1;totalfilelen > 0;i++)
+	{
+		char filename[1024];
+		sprintf(filename,"e:\\OnvifSoap\\soapC%d.cpp",i);
+		fpo = fopen(filename,"wb");
+		if(NULL == fpo)
+		{
+			printf("Error open output file :%s",filename);
+			fclose(fpi);
+			return -3;
+		}
+
+		int writelen;
+		getNextWritePos(p,totalfilelen,skipsize,&writelen);
+		if(i>1)
+		{
+			fwrite(buf,1,headLen,fpo);
+		}
+		fwrite(p,1,writelen,fpo);
+		p+= writelen;
+		totalfilelen -= writelen;
+		fclose(fpo);
+	}
 	printf("\n!OK");
 	return 0;
 }
